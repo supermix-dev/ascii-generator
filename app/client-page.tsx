@@ -7,7 +7,14 @@ import { Switch } from '@/components/ui/switch';
 import { Check, Copy, Download } from 'lucide-react';
 import { useRef, useState, type ChangeEvent } from 'react';
 
-const ASCII_CHARS = [' ', '.', '·', ':', '-', '=', '≡', '≣', '▒', '▓'];
+const ASCII_CHAR_SETS = {
+  minimal: [' ', '.', ':'],
+  standard: [' ', '.', '·', ':', '-', '=', '≡', '≣', '▒', '▓'],
+  blocks: [' ', '░', '▒', '▓', '█'],
+  lines: [' ', '╴', '╶', '─', '╵', '╰', '╭', '─', '╷', '╮', '╯', '│'],
+} as const;
+
+type AsciiSetName = keyof typeof ASCII_CHAR_SETS;
 
 const FONT_SIZE_PX = 8;
 const CHAR_WIDTH = FONT_SIZE_PX * 0.6;
@@ -29,6 +36,8 @@ export default function AsciiArtGenerator() {
   const outputCanvasRef = useRef<HTMLCanvasElement>(
     null
   ) as React.RefObject<HTMLCanvasElement>;
+  const [selectedCharSet, setSelectedCharSet] =
+    useState<AsciiSetName>('standard');
 
   const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -63,6 +72,8 @@ export default function AsciiArtGenerator() {
     imageData: ImageData,
     aspectRatio: number
   ): string => {
+    const chars = ASCII_CHAR_SETS[selectedCharSet];
+
     const asciiWidth = outputWidth;
     const asciiHeight = Math.round(asciiWidth / aspectRatio);
 
@@ -100,10 +111,8 @@ export default function AsciiArtGenerator() {
           pixelBrightness = 1 - pixelBrightness;
         }
 
-        const charIndex = Math.floor(
-          pixelBrightness * (ASCII_CHARS.length - 1)
-        );
-        asciiImage += ASCII_CHARS[charIndex];
+        const charIndex = Math.floor(pixelBrightness * (chars.length - 1));
+        asciiImage += chars[charIndex];
       }
       asciiImage += '\n';
     }
@@ -136,9 +145,8 @@ export default function AsciiArtGenerator() {
     canvas.height *= scale;
     ctx.scale(scale, scale);
 
-    // Clear and set background
-    ctx.fillStyle = 'white';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Clear canvas to transparent (removed white background fill)
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Configure text rendering
     ctx.fillStyle = TEXT_COLOR;
@@ -172,6 +180,8 @@ export default function AsciiArtGenerator() {
         setBrightness={setBrightness}
         invert={invert}
         setInvert={setInvert}
+        selectedCharSet={selectedCharSet}
+        setSelectedCharSet={setSelectedCharSet}
       />
       <Canvas
         asciiArt={asciiArt}
@@ -195,6 +205,8 @@ const Sidebar = ({
   setBrightness,
   invert,
   setInvert,
+  selectedCharSet,
+  setSelectedCharSet,
 }: {
   handleImageUpload: (e: ChangeEvent<HTMLInputElement>) => void;
   generateAsciiArt: () => void;
@@ -207,21 +219,30 @@ const Sidebar = ({
   setBrightness: (value: number) => void;
   invert: boolean;
   setInvert: (value: boolean) => void;
+  selectedCharSet: AsciiSetName;
+  setSelectedCharSet: (value: AsciiSetName) => void;
 }) => {
   return (
-    <div className="flex shrink-0 flex-col w-96 p-4 gap-2 border-r">
-      <div className="space-y-4">
-        <Input type="file" accept="image/*" onChange={handleImageUpload} />
+    <div className="flex shrink-0 flex-col w-96 p-4 overflow-scroll gap-2 border-r">
+      <div className="flex flex-col w-full gap-0 border rounded overflow-hidden">
+        <div className="flex flex-col w-full aspect-square border-b">
+          {imageFile && (
+            <img
+              src={URL.createObjectURL(imageFile)}
+              alt="Preview"
+              className="object-contain aspect-square w-full h-full"
+            />
+          )}
+        </div>
+
+        <Input
+          className="w-full rounded-none border-none "
+          type="file"
+          accept="image/*"
+          onChange={handleImageUpload}
+        />
       </div>
-      <div className="flex flex-col w-full aspect-square border">
-        {imageFile && (
-          <img
-            src={URL.createObjectURL(imageFile)}
-            alt="Preview"
-            className="object-contain w-full h-full"
-          />
-        )}
-      </div>
+
       <div className="mt-4 space-y-4">
         <div className="space-y-2">
           <Label htmlFor="width-slider">
@@ -269,6 +290,24 @@ const Sidebar = ({
             onCheckedChange={setInvert}
           />
           <Label htmlFor="invert-switch">Invert Colors</Label>
+        </div>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Character Set</Label>
+            <select
+              className="w-full p-2 border rounded"
+              value={selectedCharSet}
+              onChange={(e) =>
+                setSelectedCharSet(e.target.value as AsciiSetName)
+              }
+            >
+              {Object.entries(ASCII_CHAR_SETS).map(([key, chars]) => (
+                <option key={key} value={key}>
+                  {key} ({chars.join('')})
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
         <div className="flex flex-col w-full">
           <Button onClick={generateAsciiArt} disabled={!imageFile}>
